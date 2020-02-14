@@ -61,7 +61,7 @@ const deleteImages = function(req, resp, next) {
         list = list.split(',');
         const sql = 'delete from img_list where id in ('+ids+')'
     
-        if(pwd != "20180119"){
+        if(pwd != "123456"){
             resp.status(401).send({
                 code: 401,
                 message: '密码错误'
