@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>图片上传</title>
+    <link href="./css/index.css" rel="stylesheet" type="text/css"/>
+</head>
+
+<body>
+    <div class="wrap">
+        <div class="selectImg" title="上传图片"></div>
+        <input type="file" id="file">
+        <input type="button" value="上传" id="upload">
+        <input type="button" value="删除" id="delete" onclick="deleteImages()">
+        <div class="preview"></div>
+        <div class="progress">
+            <progress max="100" value="1" item-width="100" id="progress"></progress>
+        </div>
+    </div>
+    <div class="wrap-copy"></div>
+    <div class="image-list"></div>
+    <div class="mask hide">
+        <div class="cover">
+            <p class="close">X</p>
+            <img src="./uploads/1573386561035-Android1.png" id="cover_img" alt="" />
+        </div>
+    </div>
+    <script src="./js/index.js"></script>
+</body>
+
+</html>
