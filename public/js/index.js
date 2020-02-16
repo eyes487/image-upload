@@ -12,7 +12,7 @@ var windowCW,  //窗口视口的宽度
     n,         //一行能容纳多少个div，并向下取整
     center,    //居中
     arrH = []; //定义一个数组存放每个item的高度
-const BASE_URL = 'http://localhost:9999';
+const BASE_URL = 'http://47.106.187.172:9999';
 
 /**
  * 选择文件

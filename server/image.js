@@ -6,29 +6,24 @@ const db = require('./db');
 //上传
 const upload = function(req, resp, next) {
     var files = req.files
-    if (!files[0]) {
-        resp.send({
-            status: 200,
-            message: '未上传文件'
-        });
-    } else {
-        for(let i = 0;i < files.length; i++){
-            var sql = "insert into img_list (imgSrc)values (?)";
-            db.dbConn.sqlConnect(sql,[files[i].filename],function(err,data){
-                if(err){
-                    resp.status(500).send({
-                        status: 500,
-                        message: err
-                    })
-                }else{
-                    resp.send({
-                        status: 200,
-                        message: '上传成功'
-                    });
-                }
+    var names = [];
+    for(let i = 0;i < files.length; i++){
+        names.push("('"+files[i].filename+"')");
+    }
+    var sql = "insert into img_list (imgSrc)values " + names.join(',');
+    db.dbConn.sqlConnect(sql,[],function(err,data){
+        if(err){
+            resp.status(500).send({
+                status: 500,
+                message: err
             })
+        }else{
+            resp.send({
+                status: 200,
+                message: '上传成功'
+            });
         }
-    };
+    })
 }
 
 //查询列表

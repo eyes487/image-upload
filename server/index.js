@@ -2,10 +2,8 @@
 exports.__esModule = true;
 var express = require("express");
 var multer = require("multer");
-var fs = require('fs');
 const path = require('path');
 const favicon = require('serve-favicon')
-var image = require("imageinfo");
 var bodyParser = require('body-parser');
 
 var storage = multer.diskStorage({
@@ -16,7 +14,7 @@ var storage = multer.diskStorage({
         cb(null, `${Date.now()}-${file.originalname}`)
     }
 })
-var upload = multer({ storage: storage });
+var uploadFile = multer({ storage: storage });
 
 var myImgOperate = require('./image')
 
@@ -33,7 +31,7 @@ app.use(function(req,res,next){
 })
 
 //上传
-app.post('/uploadimg', upload.array('imgfile', 40), myImgOperate.upload)
+app.post('/uploadimg', uploadFile.array('imgfile', 10), myImgOperate.upload)
 //获取列表
 app.get('/getImageList', myImgOperate.getImageList)
 
