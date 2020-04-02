@@ -12,7 +12,18 @@ var windowCW,  //窗口视口的宽度
     n,         //一行能容纳多少个div，并向下取整
     center,    //居中
     arrH = []; //定义一个数组存放每个item的高度
-const BASE_URL = 'http://47.106.187.172:9999';
+const BASE_URL = 'http://localhost:9999';
+
+const observer = new IntersectionObserver(function(changes) {
+    changes.forEach(function(element, index) {
+     // 当这个值大于0，说明满足我们的加载条件了，这个值可通过rootMargin手动设置
+      if (element.intersectionRatio > 0) {
+        // 放弃监听，防止性能浪费，并加载图片。
+        observer.unobserve(element.target);
+        element.target.src = element.target.dataset.src;
+      }
+    });
+});
 
 /**
  * 选择文件
@@ -108,6 +119,14 @@ function getImageList() {
     }
 }
 
+function initObserver() {
+    const listItems = document.querySelectorAll('.img');
+    listItems.forEach(function(item) {
+     // 对每个list元素进行监听
+      observer.observe(item);
+    });
+}
+
 /**
  * 渲染图片
  * @param {*} list 图片数据
@@ -120,7 +139,7 @@ function renderImage(list) {
         Div.setAttribute('class','image-item');
         Div.innerHTML = `
             <input type="checkbox" class="delete-checkbox" onClick="selectDeleteImg(this,'${list[i].id}','${list[i].imgSrc}')">
-            <img class="img" src="./uploads/${list[i].imgSrc}"/>
+            <img class="img" data-src="./uploads/${list[i].imgSrc}"/>
             <p class="desc">${list[i].imgSrc}</p>
         `;
         Node.push(Div)
@@ -134,6 +153,7 @@ function renderImage(list) {
         pageNum++;
         canLoad = true;
     }
+    initObserver();
 }
 
 /**
@@ -267,6 +287,7 @@ imageList.addEventListener('click', function (e) {
 close.addEventListener('click', function (e) {
     mask.setAttribute('class', 'mask hide')
 })
+
 
 window.onscroll = lazyLoad;
 window.onresize = resizeLoad;
