@@ -1,3 +1,4 @@
+
 var aUpload = document.querySelector('.selectImg')
 var button = document.querySelector('#upload')
 var fileinput = document.getElementById('file')
@@ -6,84 +7,144 @@ var mask = document.querySelector('.mask')
 var close = document.querySelector('.close')
 var cover_img = document.querySelector('#cover_img')
 var previewDOM = document.querySelector('.preview')
+var progressWrap = document.querySelector('.progress')
 
 var deleteLists = [],checkIds = [],pageNum = 1,pageSize = 15,canLoad = true;
 var windowCW,  //窗口视口的宽度
     n,         //一行能容纳多少个div，并向下取整
     center,    //居中
     arrH = []; //定义一个数组存放每个item的高度
-const BASE_URL = 'http://47.106.187.172:9999';
+// const BASE_URL = 'http://47.106.187.172:9999';
+const BASE_URL = 'http://localhost:9999';
+const chunkSize = 0.5*1024*1024;
 
 /**
  * 选择文件
  */
-fileinput.onchange = () => {
+fileinput.onchange =async () => {
     var files = fileinput.files;
+
     let imgDOMArray = new Array(files.length)
     let reader = []
     let thumbPic = []
+    
     progressDOM = document.getElementById('progress-img')
     for (let i = 0; i < files.length; i++) {
-        if(files[i].type.indexOf('image')>-1){
-            reader[i] = new FileReader()
-            thumbPic[i] = document.createElement('div')
-            imgDOMArray[i] = document.createElement('img')
-            imgDOMArray[i].file = files[i]
-            thumbPic[i].className = 'thumbPic'
-            thumbPic[i].appendChild(imgDOMArray[i])
-            previewDOM.appendChild(thumbPic[i])
-            reader[i].readAsDataURL(files[i])
-            reader[i].onload = (img => {
-                return e => {
-                    img.src = e.target.result
-                }
-            })(imgDOMArray[i])
-        }else{
-            thumbPic[i] = document.createElement('div')
-            imgDOMArray[i] = document.createElement('p')
-            thumbPic[i].className = 'thumbPic'
-            thumbPic[i].appendChild(imgDOMArray[i])
-            previewDOM.appendChild(thumbPic[i])
-            imgDOMArray[i].innerHTML = files[i].name;
-        }
-        
+        let ret = await isImage(files[i])
+        if(!ret) return alert('只能上传图片，格式不正确！！！')
+
+        reader[i] = new FileReader()
+        thumbPic[i] = document.createElement('div')
+        imgDOMArray[i] = document.createElement('img')
+        imgDOMArray[i].file = files[i]
+        thumbPic[i].className = 'thumbPic'
+        thumbPic[i].appendChild(imgDOMArray[i])
+        previewDOM.innerHTML = '';//暂时清空
+        previewDOM.appendChild(thumbPic[i])
+        reader[i].readAsDataURL(files[i])
+        reader[i].onload = (img => {
+            return e => {
+                img.src = e.target.result
+            }
+        })(imgDOMArray[i])
     }
 }
 button.onclick = uploadFile;
 /**
  * 上传文件
  */
-function uploadFile() {
-    var xhr = new XMLHttpRequest();
-    var formdata = new FormData()
-    var files = fileinput.files
+async function uploadFile() {
+    const files = fileinput.files
     if (!files[0]) {
         alert('请先选择图片，再上传！')
         return
     }
-    var progress = document.querySelector('progress')
-    for (let i = 0; i < files.length; i++) {
-        formdata.append('imgfile', files[i], files[i].name)
-    }
-    xhr.open('POST', BASE_URL+'/uploadimg')
-    xhr.upload.onprogress = e => {
-        if (e.lengthComputable) {
-            var progressWrap = document.querySelector('.progress')
-            progressWrap.style.display = "flex"
-            var percentComplete = e.loaded / e.total * 100
-            progress.value = percentComplete
-            if (percentComplete >= 100) {
-                progress.value = 0
-                progressWrap.style.display = "none"
-            }
+    const chunks = createFileChunk(files[0],chunkSize)
+    //方法一：webwoker方式计算hash值
+    const hash = await calculateHashWorker(chunks)
+    //方式er： requestIdleCallback方式
+    // const hash1 = await calculateHashIdle(chunks);
+    
+    const chunksData = chunks.map((chunk,index)=>{
+        const name = hash + '_' + index
+        return {
+            hash,
+            name,
+            index,
+            chunk: chunk.file
         }
-    }
-    xhr.send(formdata)
+    })
+    const progressChunk = setProgress(chunksData)
+    await uploadChunks(chunksData, progressChunk,hash)
+}
+/**
+ * 
+ * 为区块设置进度条
+ */
+function setProgress(chunks){
+    progressWrap.innerHTML = ''
+    progressWrap.style.display = "flex"
+    const progressChunk = chunks.map((chunk,index)=>{
+        const node = document.createElement('div')
+        node.className = 'progressChunk success'
+        progressWrap.appendChild(node)
+
+        return node
+    })
+    return progressChunk
+}
+/**
+ * 上传切片
+ */
+async function uploadChunks(chunks, progressChunk,hash){
+    const requests = chunks.map((chunk,index)=>{
+        //转成promise
+        const form = new FormData()
+        form.append('chunk', chunk.chunk)
+        form.append('hash', chunk.hash)
+        form.append('name', chunk.name)
+
+        return form
+    }).map((form,index)=>{
+        return new Promise(resolve=>{
+            var xhr = new XMLHttpRequest();
+            xhr.open('POST', BASE_URL+'/uploadimg')
+            xhr.upload.onprogress = e => {
+                if (e.lengthComputable) {
+                    var percentComplete = e.loaded / e.total * 100
+                    progressChunk[index].style.height = percentComplete*0.3 +'px'
+                    if (percentComplete >= 100) {
+                        progressChunk[index].style.height = 100*0.3 +'px'
+                    }
+                }
+            }
+            xhr.send(form)
+            xhr.onload = () => {
+                if (xhr.readyState == 4 && xhr.status === 200) {
+                    xhr = null;
+                    resolve(1)
+                }
+            }
+        })
+    })
+    await Promise.all(requests)
+    mergeRequest(hash)
+}
+/**
+ * 合并切片请求
+ */
+function mergeRequest(hash){
+    const file = fileinput.files[0]
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', BASE_URL+'/mergeFile')
+    xhr.setRequestHeader("Content-type","application/x-www-form-urlencoded");
+    xhr.send(`ext=${file.name.split('.').pop()}&size=${chunkSize}&hash=${hash}`)
     xhr.onload = () => {
         if (xhr.readyState == 4 && xhr.status === 200) {
             previewDOM.innerHTML = ''
             xhr = null;
-            //上传之后，显示在最上面，所以把所有数据重置，从第一页查询
+            // 上传之后，显示在最上面，所以把所有数据重置，从第一页查询
+            progressWrap.style.display = "none"
             document.querySelector('.image-list').innerHTML = null;
             arrH = [];
             pageNum = 1;
@@ -108,6 +169,17 @@ function getImageList() {
     }
 }
 
+const observer = new IntersectionObserver(function(changes) {
+    changes.forEach(function(element, index) {
+     // 当这个值大于0，说明满足我们的加载条件了，这个值可通过rootMargin手动设置
+      if (element.intersectionRatio > 0) {
+        // 放弃监听，防止性能浪费，并加载图片。
+        observer.unobserve(element.target);
+        element.target.src = element.target.dataset.src;
+      }
+    });
+});
+
 /**
  * 渲染图片
  * @param {*} list 图片数据
@@ -120,7 +192,7 @@ function renderImage(list) {
         Div.setAttribute('class','image-item');
         Div.innerHTML = `
             <input type="checkbox" class="delete-checkbox" onClick="selectDeleteImg(this,'${list[i].id}','${list[i].imgSrc}')">
-            <img class="img" src="./uploads/${list[i].imgSrc}"/>
+            <img class="img" data-src="./uploads/${list[i].imgSrc}"/>
             <p class="desc">${list[i].imgSrc}</p>
         `;
         Node.push(Div)
@@ -133,7 +205,9 @@ function renderImage(list) {
     if(!(list.length < pageSize)){
         pageNum++;
         canLoad = true;
+        lazyLoad()
     }
+    initObserver();
 }
 
 /**
@@ -270,6 +344,16 @@ close.addEventListener('click', function (e) {
 
 window.onscroll = lazyLoad;
 window.onresize = resizeLoad;
+
+
+function initObserver() {
+  const listItems = document.querySelectorAll('.img');
+  listItems.forEach(function(item) {
+   // 对每个list元素进行监听
+    observer.observe(item);
+  });
+}
+
 
 //初始化
 resetSize();

@@ -12,12 +12,12 @@
 <body>
     <div class="wrap">
         <div class="selectImg" title="上传图片"></div>
-        <input type="file" multiple id="file">
+        <input type="file" id="file">
         <input type="button" value="上传" id="upload">
         <input type="button" value="删除" id="delete" onclick="deleteImages()">
         <div class="preview"></div>
         <div class="progress">
-            <progress max="100" value="1" item-width="100" id="progress"></progress>
+            <!-- <progress max="100" value="1" item-width="100" id="progress"></progress> -->
         </div>
     </div>
     <div class="wrap-copy"></div>
@@ -28,6 +28,8 @@
             <img src="./uploads/1573386561035-Android1.png" id="cover_img" alt="" />
         </div>
     </div>
+    <script src="./js/spark-md5.min.js"></script>
+    <script src="./js/util.js"></script>
     <script src="./js/index.js"></script>
 </body>
 

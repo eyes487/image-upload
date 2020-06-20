@@ -29,7 +29,28 @@ body {
     z-index: 10;
     background-color: rgba(1, 1, 1, 0.3);
 }
-
+.progressChunk{
+    width: 30px;
+    height: 0;
+    position: relative;
+    border: 1px solid #fff;
+}
+.success{
+    background: green;
+}
+.error{
+    background: red;
+}
+.progressChunk:before{
+    content: '';
+    width: 30px;
+    height: 30px;
+    opacity: .5;
+    background: #666;
+    position: absolute;
+    top: 0;
+    left: 0;
+}
 #progress {
     background: green;
 }

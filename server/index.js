@@ -8,11 +8,8 @@ var bodyParser = require('body-parser');
 
 var storage = multer.diskStorage({
     destination: function(req, file, cb) {
-        cb(null, './public/uploads');
+        cb(null, './public/uploads/');
     },
-    filename: function(req, file, cb) {
-        cb(null, `${Date.now()}-${file.originalname}`)
-    }
 })
 var uploadFile = multer({ storage: storage });
 
@@ -31,7 +28,9 @@ app.use(function(req,res,next){
 })
 
 //上传
-app.post('/uploadimg', uploadFile.array('imgfile', 10), myImgOperate.upload)
+app.post('/uploadimg', uploadFile.single('chunk'), myImgOperate.upload)
+//合并切片
+app.post('/mergeFile', myImgOperate.mergeFile)
 //获取列表
 app.get('/getImageList', myImgOperate.getImageList)
 
