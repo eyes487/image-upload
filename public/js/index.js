@@ -14,9 +14,8 @@ var windowCW,  //窗口视口的宽度
     n,         //一行能容纳多少个div，并向下取整
     center,    //居中
     arrH = []; //定义一个数组存放每个item的高度
-// const BASE_URL = 'http://47.106.187.172:9999';
 const BASE_URL = 'http://localhost:9999';
-const chunkSize = 0.5*1024*1024;
+const chunkSize = 1*1024*1024;
 
 /**
  * 选择文件
@@ -148,16 +147,20 @@ async function uploadChunks(chunks, progressChunkMap,hash,uploadedList){
     mergeRequest(hash)
 }
 /**
- * 设置并发数请求
+ * 设置并发数请求,上传可能报错，进度条变红，开始重试
  */
 async function sendRequest(chunks,progressChunkMap, limit=5){
     //数组，长度限制是limit
     return new Promise((resolve,reject)=>{
         let len = chunks.length
         let count = 0
+        let isStop = false
         if(!chunks.length) resolve()
-        const request=(form, name)=>{
+        const request=(task)=>{
+            const {form,name} = task
             return new Promise(resolve=>{
+                progressChunkMap[name].className = 'progressChunk success'
+                progressChunkMap[name].style.height = 0+'px'
                 var xhr = new XMLHttpRequest();
                 xhr.open('POST', BASE_URL+'/uploadimg')
                 xhr.upload.onprogress = e => {
@@ -174,15 +177,28 @@ async function sendRequest(chunks,progressChunkMap, limit=5){
                     if (xhr.readyState == 4 && xhr.status === 200) {
                         xhr = null;
                         resolve(1)
+                    }else{
+                        progressChunkMap[name].className = 'progressChunk error'
+                        //报错重试结束
+                        if(!task.error||task.error<3){
+                            task.error = task.error?task.error+1:1
+                            chunks.unshift(task)
+                            start()
+                        }else{
+                            isStop = true
+                            reject()
+                        }
                     }
                 }
             })
         }
         const start=async ()=>{
+            if(isStop){
+                resolve()
+            }
             const task = chunks.shift()
             if(task){
-                const {form,name} = task
-                await request(form,name)
+                await request(task)
                 if(count==len-1){
                     resolve()
                 }else{
