@@ -95,9 +95,13 @@ function setProgress(chunks){
     progressWrap.style.display = "flex"
     let progressChunkMap = {}
     chunks.map((chunk,index)=>{
+        const box = document.createElement('div')
+        box.className = 'progressBox'
+        
         const node = document.createElement('div')
         node.className = 'progressChunk success'
-        progressWrap.appendChild(node)
+        box.appendChild(node)
+        progressWrap.appendChild(box)
         chunk.progress==100
             ?node.style.height = 100*0.3 +'px'
             :progressChunkMap[chunk.name] = node   
@@ -138,30 +142,61 @@ async function uploadChunks(chunks, progressChunkMap,hash,uploadedList){
         form.append('name', chunk.name)
 
         return {form,name:chunk.name}
-    }).map(({form,name},index)=>{
-        return new Promise(resolve=>{
-            var xhr = new XMLHttpRequest();
-            xhr.open('POST', BASE_URL+'/uploadimg')
-            xhr.upload.onprogress = e => {
-                if (e.lengthComputable) {
-                    var percentComplete = e.loaded / e.total * 100
-                    progressChunkMap[name].style.height = percentComplete*0.3 +'px'
-                    if (percentComplete >= 100) {
-                        progressChunkMap[name].style.height = 100*0.3 +'px'
+    })
+    await sendRequest(requests,progressChunkMap)
+
+    mergeRequest(hash)
+}
+/**
+ * 设置并发数请求
+ */
+async function sendRequest(chunks,progressChunkMap, limit=5){
+    //数组，长度限制是limit
+    return new Promise((resolve,reject)=>{
+        let len = chunks.length
+        let count = 0
+        if(!chunks.length) resolve()
+        const request=(form, name)=>{
+            return new Promise(resolve=>{
+                var xhr = new XMLHttpRequest();
+                xhr.open('POST', BASE_URL+'/uploadimg')
+                xhr.upload.onprogress = e => {
+                    if (e.lengthComputable) {
+                        var percentComplete = e.loaded / e.total * 100
+                        progressChunkMap[name].style.height = percentComplete*0.3 +'px'
+                        if (percentComplete >= 100) {
+                            progressChunkMap[name].style.height = 100*0.3 +'px'
+                        }
                     }
                 }
-            }
-            xhr.send(form)
-            xhr.onload = () => {
-                if (xhr.readyState == 4 && xhr.status === 200) {
-                    xhr = null;
-                    resolve(1)
+                xhr.send(form)
+                xhr.onload = () => {
+                    if (xhr.readyState == 4 && xhr.status === 200) {
+                        xhr = null;
+                        resolve(1)
+                    }
+                }
+            })
+        }
+        const start=async ()=>{
+            const task = chunks.shift()
+            if(task){
+                const {form,name} = task
+                await request(form,name)
+                if(count==len-1){
+                    resolve()
+                }else{
+                    count++
+                    start()
                 }
             }
-        })
+        }
+        while(limit>0){
+            //启动limit个任务
+            start()
+            limit -=1
+        }
     })
-    await Promise.all(requests)
-    mergeRequest(hash)
 }
 /**
  * 合并切片请求

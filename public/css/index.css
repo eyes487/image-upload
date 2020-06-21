@@ -29,10 +29,20 @@ body {
     z-index: 10;
     background-color: rgba(1, 1, 1, 0.3);
 }
+.progressBox{
+    width: 30px;
+    height: 30px;
+    position: relative;
+    opacity: .5;
+    background: #666;
+    border: 1px solid #fff;
+}
 .progressChunk{
     width: 30px;
     height: 0;
-    position: relative;
+    position: absolute;
+    top: 0;
+    left: 0;
     border: 1px solid #fff;
 }
 .success{
@@ -40,16 +50,6 @@ body {
 }
 .error{
     background: red;
-}
-.progressChunk:before{
-    content: '';
-    width: 30px;
-    height: 30px;
-    opacity: .5;
-    background: #666;
-    position: absolute;
-    top: 0;
-    left: 0;
 }
 #progress {
     background: green;
