@@ -3,6 +3,7 @@ const fs = require('fs');
 const path = require('path')
 const image = require("imageinfo");
 const db = require('./db');
+const BASE_URL = 'public/uploads/'
 
 //上传
 const upload = function(req, resp, next) {
@@ -10,7 +11,7 @@ const upload = function(req, resp, next) {
         const file = req.file
         const {hash, name} = req.body
         
-        const chunkPath = path.resolve('public/uploads/',hash)
+        const chunkPath = path.resolve(BASE_URL,hash)
         // 判断目录是否存在
         if(!fs.existsSync(chunkPath)) fs.mkdirSync(chunkPath);
         // 移动切片文件
@@ -21,7 +22,6 @@ const upload = function(req, resp, next) {
         });
        
     }catch(e){
-        console.log(e)
         resp.status(500).send({
             code: 500,
             message: '服务器错误'
@@ -29,26 +29,56 @@ const upload = function(req, resp, next) {
     }
 }
 
+const checkFile = async function(req, resp, next){
+    try{
+        const {ext, hash} = req.body
+        const filePath = path.resolve(BASE_URL,`${hash}.${ext}`)
+        const chunkDir = path.resolve(BASE_URL,hash)
+
+        let uploaded = false
+        let uploadedList = []
+        if(fs.existsSync(filePath)){
+            uploaded = true
+        }else{
+            uploadedList = fs.existsSync(chunkDir)
+                           ? (fs.readdirSync(chunkDir).filter(name=>name[0]!=='.'))
+                           : []
+        }   
+        resp.send({
+            status: 200,
+            message: '成功',
+            data:{
+                uploaded, uploadedList
+            }
+        });
+    }catch(e){
+        resp.status(500).send({ 
+            code: 500,
+            message: '服务器错误'
+        });
+    }
+}
 
 //合并切片
 const mergeFile =async function(req, resp, next) {
     try{
         const {ext, size, hash} = req.body
         
-        const filePath = path.resolve('public/uploads/',`${hash}.${ext}`)
-        const chunkDir = path.resolve('public/uploads/',hash)
+        const filePath = path.resolve(BASE_URL,`${hash}.${ext}`)
+        const chunkDir = path.resolve(BASE_URL,hash)
 
         let chunks =  fs.readdirSync(chunkDir)
         chunks.sort((a,b)=>a.split('-')[1] - b.split('-')[1])
         chunks = chunks.map(cp=>{
             return path.resolve(chunkDir,cp)
         })
+        
         const pipeStream = (filePath,WritableStream)=>{
             new Promise((resolve)=>{
                 const readStream = fs.createReadStream(filePath)
                 readStream.on('end',()=>{
-                    fs.unlinkSync(filePath)
-                    resolve()
+                    fs.unlinkSync(filePath) 
+                    resolve(1)
                 })
                 readStream.pipe(WritableStream)
             })
@@ -61,7 +91,6 @@ const mergeFile =async function(req, resp, next) {
                 }))
             })
         )
-        // fs.rmdirSync(chunkDir)
         var sql = "insert into img_list (imgSrc)values (?)";
         db.dbConn.sqlConnect(sql,[`${hash}.${ext}`],function(err,data){
             if(err){
@@ -70,6 +99,9 @@ const mergeFile =async function(req, resp, next) {
                     message: err
                 })
             }else{
+                setTimeout(()=>{
+                    fs.rmdirSync(chunkDir)
+                },1000)
                 resp.send({
                     status: 200,
                     message: '上传成功',
@@ -78,7 +110,6 @@ const mergeFile =async function(req, resp, next) {
             }
         })
     }catch(e){
-        console.log(e)
         resp.status(500).send({
             code: 500,
             message: '服务器错误'
@@ -100,7 +131,7 @@ const getImageList = function(req,resp){
                     message: err
                 })
             }else{
-                let newData = getImageFiles('public/uploads/',data)
+                let newData = getImageFiles(BASE_URL,data)
                 resp.send({
                     status: 200,
                     data: newData,
@@ -135,11 +166,11 @@ const deleteImages = function(req, resp, next) {
             }
             db.dbConn.sqlConnect(sql,[],function(err,data){
                 if(err){
-                    resp.status(400).send({
+                    resp.status(400).send({ 
                         status: 400,
                         message: err
                     })
-                }else{
+                }else{ 
                     resp.send({
                         code: 200,
                         message: '删除成功'
@@ -148,7 +179,7 @@ const deleteImages = function(req, resp, next) {
             })
         }
     } catch (error) {
-        resp.status(500).send({
+        resp.status(500).send({ 
             code: 500,
             message: '服务器错误'
         });
@@ -158,28 +189,22 @@ const deleteImages = function(req, resp, next) {
 
 //获取指定图片的尺寸
 function getImageFiles(path,data) {
-    try{
-        if(!data.length){
-            return []
-        }
-        var imageList = [];
-        data.forEach((item) => {
-            var ms = image(fs.readFileSync(path + item.imgSrc));
-            ms.mimeType && (imageList.push({...item,width: ms.width, height: ms.height}))
-        });
-        return imageList;
-    }catch(e){
-        resp.status(500).send({
-            code: 500,
-            message: '服务器错误'
-        });
+    if(!data.length){
+        return []
     }
+    var imageList = [];
+    data.forEach((item) => {
+        var ms = image(fs.readFileSync(path + item.imgSrc));
+        ms.mimeType && (imageList.push({...item,width: ms.width, height: ms.height}))
+    });
+    return imageList;
 }
 
 
 module.exports = {
     upload,
     mergeFile,
+    checkFile,
     getImageList,
     deleteImages
 };

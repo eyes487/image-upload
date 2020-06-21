@@ -65,17 +65,26 @@ async function uploadFile() {
     //方式er： requestIdleCallback方式
     // const hash1 = await calculateHashIdle(chunks);
     
+    //判断文件是否上传成功，如果没有，是否有存在的切片
+    const {uploaded, uploadedList} = await checkFile(hash)
+    if(uploaded){
+        //秒传
+        fileinput.value = null
+        previewDOM.innerHTML = ''
+        return alert('秒传成功')
+    }
     const chunksData = chunks.map((chunk,index)=>{
         const name = hash + '_' + index
         return {
             hash,
             name,
             index,
-            chunk: chunk.file
+            chunk: chunk.file,
+            progress: uploadedList.indexOf(name)>-1? 100 : 0
         }
     })
-    const progressChunk = setProgress(chunksData)
-    await uploadChunks(chunksData, progressChunk,hash)
+    const progressChunkMap = setProgress(chunksData)
+    await uploadChunks(chunksData, progressChunkMap,hash,uploadedList)
 }
 /**
  * 
@@ -84,37 +93,61 @@ async function uploadFile() {
 function setProgress(chunks){
     progressWrap.innerHTML = ''
     progressWrap.style.display = "flex"
-    const progressChunk = chunks.map((chunk,index)=>{
+    let progressChunkMap = {}
+    chunks.map((chunk,index)=>{
         const node = document.createElement('div')
         node.className = 'progressChunk success'
         progressWrap.appendChild(node)
-
-        return node
+        chunk.progress==100
+            ?node.style.height = 100*0.3 +'px'
+            :progressChunkMap[chunk.name] = node   
     })
-    return progressChunk
+    return progressChunkMap
+}
+/**
+ * 判断文件是否上传成功，如果没有，是否有存在的切片
+ */
+function checkFile(hash){
+    const file = fileinput.files[0]
+    return new Promise(resolve=>{
+        var xhr = new XMLHttpRequest();
+        xhr.open('POST', BASE_URL+'/checkFile')
+        xhr.setRequestHeader("Content-type","application/x-www-form-urlencoded");
+        xhr.send(`ext=${file.name.split('.').pop()}&hash=${hash}`)
+        xhr.onload = () => {
+            if (xhr.readyState == 4 && xhr.status === 200) {
+                let res = JSON.parse(xhr.responseText);
+                let data = res.data;
+                xhr = null
+                resolve(data)
+            }
+        }
+    })
 }
 /**
  * 上传切片
  */
-async function uploadChunks(chunks, progressChunk,hash){
-    const requests = chunks.map((chunk,index)=>{
+async function uploadChunks(chunks, progressChunkMap,hash,uploadedList){
+    const requests = chunks
+    .filter(chunk=>uploadedList.indexOf(chunk.name)==-1)
+    .map((chunk,index)=>{
         //转成promise
         const form = new FormData()
         form.append('chunk', chunk.chunk)
         form.append('hash', chunk.hash)
         form.append('name', chunk.name)
 
-        return form
-    }).map((form,index)=>{
+        return {form,name:chunk.name}
+    }).map(({form,name},index)=>{
         return new Promise(resolve=>{
             var xhr = new XMLHttpRequest();
             xhr.open('POST', BASE_URL+'/uploadimg')
             xhr.upload.onprogress = e => {
                 if (e.lengthComputable) {
                     var percentComplete = e.loaded / e.total * 100
-                    progressChunk[index].style.height = percentComplete*0.3 +'px'
+                    progressChunkMap[name].style.height = percentComplete*0.3 +'px'
                     if (percentComplete >= 100) {
-                        progressChunk[index].style.height = 100*0.3 +'px'
+                        progressChunkMap[name].style.height = 100*0.3 +'px'
                     }
                 }
             }
@@ -141,6 +174,7 @@ function mergeRequest(hash){
     xhr.send(`ext=${file.name.split('.').pop()}&size=${chunkSize}&hash=${hash}`)
     xhr.onload = () => {
         if (xhr.readyState == 4 && xhr.status === 200) {
+            fileinput.value = null
             previewDOM.innerHTML = ''
             xhr = null;
             // 上传之后，显示在最上面，所以把所有数据重置，从第一页查询
@@ -341,6 +375,7 @@ imageList.addEventListener('click', function (e) {
 close.addEventListener('click', function (e) {
     mask.setAttribute('class', 'mask hide')
 })
+
 
 window.onscroll = lazyLoad;
 window.onresize = resizeLoad;

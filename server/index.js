@@ -29,6 +29,8 @@ app.use(function(req,res,next){
 
 //上传
 app.post('/uploadimg', uploadFile.single('chunk'), myImgOperate.upload)
+//验证切片
+app.post('/checkFile', myImgOperate.checkFile)
 //合并切片
 app.post('/mergeFile', myImgOperate.mergeFile)
 //获取列表
